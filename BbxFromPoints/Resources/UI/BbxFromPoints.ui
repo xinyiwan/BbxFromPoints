@@ -1,0 +1,24 @@
+<ui version="4.0">
+  <class>Form</class>
+  <widget class="QWidget" name="Form">
+    <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+        <widget class="QPushButton" name="placePointsButton">
+          <property name="text">
+            <string>Place 6 Boundary Points</string>
+          </property>
+        </widget>
+      </item>
+      <item>
+        <widget class="QPushButton" name="computeButton">
+          <property name="text">
+            <string>Compute Bounding Box</string>
+          </property>
+          <property name="enabled">
+            <bool>false</bool>
+          </property>
+        </widget>
+      </item>
+    </layout>
+  </widget>
+</ui>

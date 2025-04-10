@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>BbxFromPointsWidget</class>
+ <widget class="qMRMLWidget" name="BbxFromPoints">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>350</width>
+    <height>550</height>
+   </rect>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="scanGroup">
+     <property name="title">
+      <string>Scan Management</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_2">
+      <item>
+       <widget class="QPushButton" name="selectDirectoryButton">
+        <property name="text">
+         <string>Select Scan Directory</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="scanLabel">
+        <property name="text">
+         <string>No scans loaded</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="previousButton">
+          <property name="text">
+           <string>Previous Scan</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="nextButton">
+          <property name="text">
+           <string>Next Scan</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="pointsGroup">
+     <property name="title">
+      <string>Point Placement</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_3">
+      <item>
+       <widget class="qMRMLMarkupsPlaceWidget" name="pointsPlaceWidget">
+        <property name="nodeClass">
+         <string>vtkMRMLMarkupsFiducialNode</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QLabel" name="pointsCountLabel">
+        <property name="text">
+         <string>Points placed: 0/6</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="generateButton">
+        <property name="text">
+         <string>Generate Bounding Box</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="scoringGroup">
+     <property name="title">
+      <string>Scoring</string>
+     </property>
+     <layout class="QFormLayout" name="formLayout">
+      <item row="0" column="0">
+       <widget class="QLabel" name="bboxScoreLabel">
+        <property name="text">
+         <string>BBox Quality:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="bboxScoreComboBox">
+        <item>
+         <property name="text">
+          <string>poor</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>sufficient</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>good</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="segScoreLabel">
+        <property name="text">
+         <string>Seg Quality:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QComboBox" name="segScoreComboBox">
+        <item>
+         <property name="text">
+          <string>poor</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>sufficient</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>good</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="statusGroup">
+     <property name="title">
+      <string>Status</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_4">
+      <item>
+       <widget class="QLabel" name="statusLabel">
+        <property name="text">
+         <string>Ready</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignCenter</set>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="saveButton">
+        <property name="text">
+         <string>Save Results</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
