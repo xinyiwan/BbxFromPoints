@@ -17,8 +17,7 @@ from slicer import (
     vtkMRMLScalarVolumeNode
 )
 import csv
-
-
+import numpy as np
 
 #
 # BbxFromPoints2
@@ -31,26 +30,22 @@ class BbxFromPoints2(ScriptedLoadableModule):
 
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
-        self.parent.title = _("BbxFromPoints2")  # TODO: make this more human readable by adding spaces
-        # TODO: set categories (folders where the module shows up in the module selector)
+        self.parent.title = _("BbxFromPoints2") 
         self.parent.categories = [translate("qSlicerAbstractCoreModule", "Examples")]
-        self.parent.dependencies = []  # TODO: add here list of module names that this module requires
-        self.parent.contributors = ["John Doe (AnyWare Corp.)"]  # TODO: replace with "Firstname Lastname (Organization)"
-        # TODO: update with short description of the module and a link to online module documentation
-        # _() function marks text as translatable to other languages
+        self.parent.dependencies = [] 
+        self.parent.contributors = ["X Wan (EMC)"]  
         self.parent.helpText = _("""
-This is an example of scripted loadable module bundled in an extension.
-See more information in <a href="https://github.com/organization/projectname#BbxFromPoints2">module documentation</a>.
-""")
+            This is an example of scripted loadable module bundled in an extension.
+            See more information in <a href="https://github.com/organization/projectname#BbxFromPoints2">module documentation</a>.
+            """)
         # TODO: replace with organization, grant and thanks
         self.parent.acknowledgementText = _("""
-This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
-and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
-""")
+            This file was originally developed by Jean-Christophe Fillion-Robin, Kitware Inc., Andras Lasso, PerkLab,
+            and Steve Pieper, Isomics, Inc. and was partially funded by NIH grant 3P41RR013218-12S1.
+            """)
 
         # Additional initialization step after application startup is complete
         slicer.app.connect("startupCompleted()", registerSampleData)
-
 
 #
 # Register sample data sets in Sample Data module
@@ -124,7 +119,7 @@ class BbxFromPoints2ParameterNode:
 #
 
 
-class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
+class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     """Uses ScriptedLoadableModuleWidget base class, available at:
     https://github.com/Slicer/Slicer/blob/main/Base/Python/slicer/ScriptedLoadableModule.py
     """
@@ -132,8 +127,14 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
     def __init__(self, parent=None) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
         ScriptedLoadableModuleWidget.__init__(self, parent)
+        VTKObservationMixin.__init__(self)  # needed for parameter node observation
         self.logic = BbxFromPoints2Logic()
         self._parameterNode = None
+        self._pointsNodeObserverTag = None
+        self._parameterNodeGuiTag = None
+        
+        
+        
 
     def setup(self) -> None:
         """Called when the user opens the module the first time and the widget is initialized."""
@@ -144,29 +145,46 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
         self.layout.addWidget(uiWidget)
         self.ui = slicer.util.childWidgetVariables(uiWidget)
 
+        # Set scene in MRML widgets. Make sure that in Qt designer the top-level qMRMLWidget's
+        # "mrmlSceneChanged(vtkMRMLScene*)" signal in is connected to each MRML widget's.
+        # "setMRMLScene(vtkMRMLScene*)" slot.
+        uiWidget.setMRMLScene(slicer.mrmlScene)
+
+        # These connections ensure that we update parameter node when scene is closed
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.StartCloseEvent, self.onSceneStartClose)
+        self.addObserver(slicer.mrmlScene, slicer.mrmlScene.EndCloseEvent, self.onSceneEndClose)
+
+        # Connections / buttons
+        self.setupConnections()
+        
         # Initialize parameter node after UI setup
         self.initializeParameterNode()
-        
-        # Configure points widget
-        self.ui.pointsPlaceWidget.setMRMLScene(slicer.mrmlScene)
-        self.ui.pointsPlaceWidget.setCurrentNode(self._parameterNode.pointsNode)
-        self.ui.pointsPlaceWidget.placeButton().show()
 
-        self.setupConnections()
+        # Add observer to points node
+        if self._parameterNode.pointsNode:
+            self._pointsNodeObserverTag = self._parameterNode.pointsNode.AddObserver(
+                slicer.vtkMRMLMarkupsNode.PointModifiedEvent, 
+                self.onPointsNodeChanged
+            )
+
+        # Update UI
         self.updateUI()
 
+    
     def setupConnections(self):
-        """All UI signal connections in one place"""
+        """Connect UI signals to slots."""
         self.ui.selectDirectoryButton.clicked.connect(self.onSelectDirectory)
         self.ui.previousButton.clicked.connect(self.onPreviousScan)
         self.ui.nextButton.clicked.connect(self.onNextScan)
         self.ui.saveButton.clicked.connect(self.onSave)
         self.ui.generateButton.clicked.connect(self.onGenerateBbox)
-        self.ui.pointsPlaceWidget.currentNodeChanged.connect(self.onPointsNodeChanged)
-
+        # self.pointsPlaceWidget.currentNodeChanged.connect(self.onPointsNodeChanged)
 
     def initializeParameterNode(self):
-        # Get or create parameter node
+        """Ensure parameter node exists and observed."""
+        # Parameter node stores all user choices in parameter values, node selections, etc.
+        # so that when the scene is saved and reloaded, these settings are restored.
+
         self._parameterNode = self.logic.getParameterNode()
         
         # Initialize nodes with scene association
@@ -184,9 +202,40 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
                 "vtkMRMLSegmentationNode",
                 "BoundingBox"
         )
-        # Initialize defaults
-        self._parameterNode.scanDirectory = getattr(self._parameterNode, 'scanDirectory', "")
-        self._parameterNode.currentScanIndex = getattr(self._parameterNode, 'currentScanIndex', 0)
+            
+    def setParameterNode(self, inputParameterNode: Optional[BbxFromPoints2ParameterNode]) -> None:
+        """
+        Set and observe parameter node.
+        Observation is needed because when the parameter node is changed then the GUI must be updated immediately.
+        """
+
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+        self._parameterNode = inputParameterNode
+        if self._parameterNode:
+            # Note: in the .ui file, a Qt dynamic property called "SlicerParameterName" is set on each
+            # ui element that needs connection.
+            self._parameterNodeGuiTag = self._parameterNode.connectGui(self.ui)
+            self.addObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+            self._checkCanApply()
+
+    def _checkCanApply(self, caller=None, event=None) -> None:
+        # TODO check the number of points
+        if self._parameterNode and self._parameterNode.pointsNode and self._parameterNode.pointsNode.GetNumberOfControlPoints() >= 6:
+            self.ui.generateButton.toolTip = _("Generate Bbox")
+            self.ui.generateButton.enabled = True
+        else:
+            self.ui.generateButton.toolTip = _("Select at least 6 points for the boundary")
+            self.ui.generateButton.enabled = False
+
+    def onApplyButton(self) -> None:
+        """Run processing when user clicks "generate" button."""
+        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
+            # Compute output
+            self.logic.createBoundingBox(self.ui.inputSelector.currentNode(), self.ui.outputSelector.currentNode(),
+                               self.ui.imageThresholdSliderWidget.value, self.ui.invertOutputCheckBox.checked)
+
 
     def onSelectDirectory(self):
         directory = qt.QFileDialog.getExistingDirectory()
@@ -268,9 +317,8 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
         else:
             self.ui.scanLabel.text = "No scans loaded"
     
-    def onPointsNodeChanged(self, node):
+    def onPointsNodeChanged(self, caller, event):
         """Handle points node changes"""
-        self._parameterNode.pointsNode = node
         self.updateUI()
 
     def onGenerateBbox(self):
@@ -286,11 +334,32 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget):
     
     def cleanup(self):
         """Cleanup observations"""
-        if self.pointsObservationTag and self._parameterNode.pointsNode:
-            self._parameterNode.pointsNode.RemoveObserver(self.pointsObservationTag)
-        super().cleanup()
+        self.removeObservers()
     
-
+    def enter(self) -> None:
+        """Called each time the user opens this module."""
+        # Make sure parameter node exists and observed
+        self.initializeParameterNode()
+    
+    def exit(self) -> None:
+        """Called each time the user opens a different module."""
+        # Do not react to parameter node changes (GUI will be updated when the user enters into the module)
+        if self._parameterNode:
+            self._parameterNode.disconnectGui(self._parameterNodeGuiTag)
+            self._parameterNodeGuiTag = None
+            self.removeObserver(self._parameterNode, vtk.vtkCommand.ModifiedEvent, self._checkCanApply)
+    
+    def onSceneStartClose(self, caller, event) -> None:
+        """Called just before the scene is closed."""
+        # Parameter node will be reset, do not use it anymore
+        self.setParameterNode(None)
+    
+    def onSceneEndClose(self, caller, event) -> None:
+        """Called just after the scene is closed."""
+        # If this module is shown while the scene is closed then recreate a new parameter node immediately
+        if self.parent.isEntered:
+            self.initializeParameterNode()
+    
 
 #
 # BbxFromPoints2Logic
@@ -358,7 +427,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
             points.append(point)
         
         # Calculate bounding box dimensions
-        import numpy as np
+        
         points_array = np.array(points)
         min_coords = np.min(points_array, axis=0)
         max_coords = np.max(points_array, axis=0)
@@ -393,6 +462,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         segmentation.AddSegment(segment)
         
         return bboxNode
+
 
 #
 # BbxFromPoints2Test
