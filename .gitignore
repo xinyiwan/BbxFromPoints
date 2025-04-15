@@ -7,7 +7,8 @@ BbxFromPoints2/__pycache__/
 
 # C extensions
 *.so
-
+*.pyc
+*/*.pyc
 # Distribution / packaging
 .Python
 build/
@@ -177,3 +178,4 @@ cython_debug/
 BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
 BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
 BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
+BbxFromPoints2/__pycache__/BbxFromPoints2.cpython-39.pyc
