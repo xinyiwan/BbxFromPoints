@@ -178,7 +178,6 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.nextButton.clicked.connect(self.onNextScan)
         self.ui.saveButton.clicked.connect(self.onSave)
         self.ui.generateButton.clicked.connect(self.onGenerateBbox)
-        # self.pointsPlaceWidget.currentNodeChanged.connect(self.onPointsNodeChanged)
 
     def initializeParameterNode(self):
         """Ensure parameter node exists and observed."""
@@ -221,21 +220,13 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._checkCanApply()
 
     def _checkCanApply(self, caller=None, event=None) -> None:
-        # TODO check the number of points
+        
         if self._parameterNode and self._parameterNode.pointsNode and self._parameterNode.pointsNode.GetNumberOfControlPoints() >= 6:
             self.ui.generateButton.toolTip = _("Generate Bbox")
             self.ui.generateButton.enabled = True
         else:
             self.ui.generateButton.toolTip = _("Select at least 6 points for the boundary")
             self.ui.generateButton.enabled = False
-
-    def onApplyButton(self) -> None:
-        """Run processing when user clicks "generate" button."""
-        with slicer.util.tryWithErrorDisplay(_("Failed to compute results."), waitCursor=True):
-            # Compute output
-            self.logic.createBoundingBox(self.ui.inputSelector.currentNode(), self.ui.outputSelector.currentNode(),
-                               self.ui.imageThresholdSliderWidget.value, self.ui.invertOutputCheckBox.checked)
-
 
     def onSelectDirectory(self):
         directory = qt.QFileDialog.getExistingDirectory()
@@ -282,14 +273,27 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     
     def onSave(self):
         if self.validateCurrentState():
+
+            # Create a temporary labelmap volume node
+            labelmap_volume_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+            
+            # Export the segmentation to labelmap
+            slicer.modules.segmentations.logic().ExportAllSegmentsToLabelmapNode(
+                self._parameterNode.bboxNode,           # Input segmentation node
+                labelmap_volume_node                    # Output labelmap volume
+            )
+
             self.logic.saveResults(
-                self._parameterNode.bboxNode,
+                labelmap_volume_node,
                 self._parameterNode.scanDirectory,
                 self._parameterNode.currentScanIndex,
                 self.ui.bboxScoreComboBox.currentText,
                 self.ui.segScoreComboBox.currentText
             )
             slicer.util.infoDisplay("Results saved successfully")
+
+            # Optional: Clean up (remove temporary labelmap)
+            slicer.mrmlScene.RemoveNode(labelmap_volume_node)
 
     def validateCurrentState(self):
         valid = True
