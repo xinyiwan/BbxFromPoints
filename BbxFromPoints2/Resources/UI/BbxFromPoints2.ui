@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>BbxFromPointsWidget</class>
+ <class>BbxFromPoints</class>
  <widget class="qMRMLWidget" name="BbxFromPoints">
   <property name="geometry">
    <rect>
@@ -61,13 +61,6 @@
       <string>Point Placement</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
-      <item>
-       <widget class="qMRMLMarkupsPlaceWidget" name="pointsPlaceWidget">
-        <property name="nodeClass">
-         <string>vtkMRMLMarkupsFiducialNode</string>
-        </property>
-       </widget>
-      </item>
       <item>
        <widget class="QLabel" name="pointsCountLabel">
         <property name="text">
@@ -177,6 +170,14 @@
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>qMRMLWidget</class>
+   <extends>QWidget</extends>
+   <header>qMRMLWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>

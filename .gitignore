@@ -1,5 +1,7 @@
 # Byte-compiled / optimized / DLL files
-__pycache__/
+BbxFromPoints/__pycache__/
+BbxFromPoints2/__pycache__/
+
 *.py[cod]
 *$py.class
 
@@ -172,3 +174,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
+BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
+BbxFromPoints/__pycache__/BbxFromPoints.cpython-39.pyc
