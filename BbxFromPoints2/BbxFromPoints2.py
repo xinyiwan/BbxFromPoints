@@ -106,8 +106,10 @@ class BbxFromPoints2ParameterNode:
     """
     Custom parameters for bounding box workflow
     """
-    scanDirectory: str  # Directory containing image_X/seg_X files
-    currentScanIndex: int = 0
+    scanDirectory: str  # Directory containing sessions
+    sessionDirectory: str # Directory of sessions
+    sessionList: list # list of sessions
+    currentSessionIndex: int = 0
     pointsNode: vtkMRMLMarkupsFiducialNode  # Selected points
     bboxNode: vtkMRMLSegmentationNode  # Generated bounding box
     scoreBbox: str = "unrated"  # poor/sufficient/good
@@ -231,24 +233,37 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onSelectDirectory(self):
         directory = qt.QFileDialog.getExistingDirectory()
         if directory:
-            self.logic.loadScans(directory)
-            print(directory)
-            self._parameterNode.scanDirectory = directory
-            self._parameterNode.currentScanIndex = 0
-            self.loadCurrentScan()
 
-    def loadCurrentScan(self):
+            # get available sessions
+            self._parameterNode.scanDirectory = directory
+
+            # load sessions
+            sessions = sorted([f for f in os.listdir(directory) if not f.startswith('.')])
+            self._parameterNode.sessionList = sessions
+            self._parameterNode.currentSessionIndex = 0
+
+            # load current session Dir
+            self.logic.loadScans(directory, sessions, self._parameterNode.currentSessionIndex)
+            print(f'Current session: {self._parameterNode.currentSessionIndex} in {directory}')
+
+            self.loadCurrentSession()
+
+    def loadCurrentSession(self):
         if not self._parameterNode.scanDirectory:
             return
             
         # Load image and segmentation
         imagePath, segPath = self.logic.getScanPaths(
-            self._parameterNode.scanDirectory, 
-            self._parameterNode.currentScanIndex
+            self._parameterNode.scanDirectory,
+            self._parameterNode.sessionList,
+            self._parameterNode.currentSessionIndex
         )
         
-        self._parameterNode.existingSegNode = slicer.util.loadSegmentation(segPath)
-        slicer.util.loadVolume(imagePath)
+        for p in segPath:
+            self._parameterNode.existingSegNode = slicer.util.loadSegmentation(p)
+
+        for p in imagePath:
+            slicer.util.loadVolume(p)
         
         # Reset points and bbox
         if self._parameterNode.pointsNode:
@@ -260,16 +275,62 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.statusLabel.text = "Status: Ready"
         self.ui.statusLabel.styleSheet = ""
         self.updateUI()
+    
+    def switchSessionPreparation(self):
+        """Clean up all loaded segmentation data before switching sessions"""
+        # Remove all loaded segmentation nodes
+        seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+        for seg_node in seg_nodes:
+            # Skip the bounding box node if it exists (we'll handle it separately)
+            if seg_node != self._parameterNode.bboxNode:
+                slicer.mrmlScene.RemoveNode(seg_node)
+        
+        # Clear the existingSegNode reference
+        self._parameterNode.existingSegNode = None
+        
+        # Remove loaded volume nodes (optional - include if you want to clear volumes too)
+        volume_nodes = slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode")
+        for volume_node in volume_nodes:
+            slicer.mrmlScene.RemoveNode(volume_node)
+        
+        # Clear points (but keep the points node)
+        if self._parameterNode.pointsNode:
+            self._parameterNode.pointsNode.RemoveAllControlPoints()
+        
+        # Reset bounding box
+        if self._parameterNode.bboxNode:
+            slicer.mrmlScene.RemoveNode(self._parameterNode.bboxNode)
+            self._parameterNode.bboxNode = None
+        
+        # Update UI
+        self.ui.statusLabel.text = "Status: Loading new session..."
+        self.ui.statusLabel.styleSheet = "color: blue"
 
+        # load scans
+        self.logic.loadScans(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex)
+
+        # Force GUI update
+        self.updateUI()
+
+        
     def onNextScan(self):
-        if self.validateCurrentState():
-            self._parameterNode.currentScanIndex += 1
-            self.loadCurrentScan()
+        if self._parameterNode.currentSessionIndex < len(self._parameterNode.sessionList) - 1:
+            self._parameterNode.currentSessionIndex += 1
+            self.switchSessionPreparation()
+            self.loadCurrentSession()
+        else:
+            slicer.util.infoDisplay("Now is the last session.")
+            return
     
     def onPreviousScan(self):
-        if self._parameterNode.currentScanIndex > 0:
-            self._parameterNode.currentScanIndex -= 1
-            self.loadCurrentScan()
+        if self._parameterNode.currentSessionIndex > 0:
+            self._parameterNode.currentSessionIndex -= 1
+            self.switchSessionPreparation()
+            self.loadCurrentSession()
+        else:
+            slicer.util.infoDisplay("Now is the first session.")
+            return
+
     
     def onSave(self):
         if self.validateCurrentState():
@@ -286,7 +347,8 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.logic.saveResults(
                 labelmap_volume_node,
                 self._parameterNode.scanDirectory,
-                self._parameterNode.currentScanIndex,
+                self._parameterNode.sessionList,
+                self._parameterNode.currentSessionIndex,
                 self.ui.bboxScoreComboBox.currentText,
                 self.ui.segScoreComboBox.currentText
             )
@@ -316,8 +378,8 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Scan info
         if self._parameterNode.scanDirectory:
-            total = len(self.logic.scanPairs)
-            self.ui.scanLabel.text = f"Scan {self._parameterNode.currentScanIndex+1}/{total}"
+            total = len(self._parameterNode.sessionList)
+            self.ui.scanLabel.text = f"Scan {self._parameterNode.currentSessionIndex+1}/{total}"
         else:
             self.ui.scanLabel.text = "No scans loaded"
     
@@ -373,7 +435,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
     def __init__(self) -> None:
         """Called when the logic class is instantiated. Can be used for initializing member variables."""
         ScriptedLoadableModuleLogic.__init__(self)
-        self.viewersLinked = False
+        self.viewersLinked = True
         self._parameterNode = None
 
     def getParameterNode(self):
@@ -384,32 +446,40 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
             self._parameterNode = BbxFromPoints2ParameterNode(baseNode)
         return self._parameterNode
         
-    def loadScans(self, directory):
+    def loadScans(self, directory, sessionList, index):
         self.scanDir = directory
-        self.scanPairs = sorted([
-            (f, f.replace("image_", "seg_")) 
-            for f in os.listdir(directory) 
-            if f.startswith("image_")
+        session_dir = directory + '/' + sessionList[index]
+        self.imagePaths = sorted([
+            f            
+            for f in os.listdir(session_dir) 
+            if f.endswith("nii.gz")
         ])
-        print(self.scanPairs)
+        print(self.imagePaths)
 
-    def getScanPaths(self, directory, index):
-        imageFile, segFile = self.scanPairs[index]
-        return (
-            os.path.join(directory, imageFile),
-            os.path.join(directory, segFile)
-        )
+    def getScanPaths(self, directory, sessionList, index):
+        
+        session_dir = directory + '/' + sessionList[index]
+        imageFile = [session_dir + '/' + f
+                    for f in self.imagePaths
+                    if 'seg' not in f]
+        
+        segFile = [session_dir + '/' + f
+                    for f in self.imagePaths
+                    if 'seg' in f]
+        return imageFile, segFile
     
-    def saveResults(self, bboxNode, directory, index, bboxScore, segScore):
+    def saveResults(self, bboxNode, directory, sessions, index, bboxScore, segScore):
         # Save segmentation
-        outputPath = os.path.join(directory, f"seg_{index}_bbox.nii.gz")
+        outputPath = os.path.join(directory, sessions[index], f"seg_bbox.nii.gz")
         slicer.util.saveNode(bboxNode, outputPath)
         
         # Save scores
-        csvPath = os.path.join(directory, "scores.csv")
+        csvPath = outputPath.replace("seg_bbox.nii.gz", "scores.csv")
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y-%m-%d")
         with open(csvPath, 'a') as f:
             writer = csv.writer(f)
-            writer.writerow([index, bboxScore, segScore])
+            writer.writerow([timestamp, bboxScore, segScore])
     
     def linkViewers(self):
         if not self.viewersLinked:
