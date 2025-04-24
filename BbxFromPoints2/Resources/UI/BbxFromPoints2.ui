@@ -78,6 +78,20 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QPushButton" name="clearButton">
+        <property name="text">
+         <string>Clear Current Bounding Box</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="clearPtsButton">
+        <property name="text">
+         <string>Clear Selected Points</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -88,53 +102,32 @@
      </property>
      <layout class="QFormLayout" name="formLayout">
       <item row="0" column="0">
-       <widget class="QLabel" name="bboxScoreLabel">
+       <widget class="QLabel" name="segScoreLabel">
         <property name="text">
-         <string>BBox Quality:</string>
+         <string>Bone Segmentation Quality:</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QComboBox" name="bboxScoreComboBox">
-        <item>
-         <property name="text">
-          <string>poor</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>sufficient</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>good</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="1" column="0">
-       <widget class="QLabel" name="segScoreLabel">
-        <property name="text">
-         <string>Seg Quality:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="1" column="1">
        <widget class="QComboBox" name="segScoreComboBox">
         <item>
          <property name="text">
-          <string>poor</string>
+          <string>Incorrect</string>
          </property>
         </item>
         <item>
          <property name="text">
-          <string>sufficient</string>
+          <string>Insufficient</string>
          </property>
         </item>
         <item>
          <property name="text">
-          <string>good</string>
+          <string>Sufficient</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Excellent</string>
          </property>
         </item>
        </widget>

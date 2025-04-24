@@ -14,7 +14,8 @@ from slicer.parameterNodeWrapper import (
 from slicer import (
     vtkMRMLMarkupsFiducialNode,
     vtkMRMLSegmentationNode,
-    vtkMRMLScalarVolumeNode
+    vtkMRMLScalarVolumeNode,
+    vtkMRMLMarkupsROINode
 )
 import csv
 import numpy as np
@@ -106,12 +107,12 @@ class BbxFromPoints2ParameterNode:
     """
     Custom parameters for bounding box workflow
     """
-    scanDirectory: str  # Directory containing sessions
-    sessionDirectory: str # Directory of sessions
-    sessionList: list # list of sessions
+    scanDirectory: str = ''  # Directory containing sessions
+    sessionDirectory: str = '' # Directory of sessions
+    sessionList: list = [] # list of sessions
     currentSessionIndex: int = 0
     pointsNode: vtkMRMLMarkupsFiducialNode  # Selected points
-    bboxNode: vtkMRMLSegmentationNode  # Generated bounding box
+    bboxNode: vtkMRMLMarkupsROINode  # Generated bounding box
     scoreBbox: str = "unrated"  # poor/sufficient/good
     scoreExistingSeg: str = "unrated"
     existingSegNode: vtkMRMLSegmentationNode  # Loaded segmentation
@@ -180,6 +181,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.nextButton.clicked.connect(self.onNextScan)
         self.ui.saveButton.clicked.connect(self.onSave)
         self.ui.generateButton.clicked.connect(self.onGenerateBbox)
+        self.ui.clearButton.clicked.connect(self.onClearBbox)
 
     def initializeParameterNode(self):
         """Ensure parameter node exists and observed."""
@@ -187,22 +189,24 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # so that when the scene is saved and reloaded, these settings are restored.
 
         self._parameterNode = self.logic.getParameterNode()
-        
+
         # Initialize nodes with scene association
         if not self._parameterNode.pointsNode:
             # Create new points node if none exists
             self._parameterNode.pointsNode = slicer.mrmlScene.AddNewNodeByClass(
                 "vtkMRMLMarkupsFiducialNode", 
-                "BbxPoints"
+                "pts"
             )
             self._parameterNode.pointsNode.CreateDefaultDisplayNodes()
         
         if not self._parameterNode.bboxNode:
         # Create empty segmentation node for bbox
             self._parameterNode.bboxNode = slicer.mrmlScene.AddNewNodeByClass(
-                "vtkMRMLSegmentationNode",
+                "vtkMRMLMarkupsROINode",
                 "BoundingBox"
         )
+
+        
             
     def setParameterNode(self, inputParameterNode: Optional[BbxFromPoints2ParameterNode]) -> None:
         """
@@ -229,6 +233,12 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         else:
             self.ui.generateButton.toolTip = _("Select at least 6 points for the boundary")
             self.ui.generateButton.enabled = False
+        
+        if self._parameterNode.bboxNode and self._parameterNode.bboxNode == None:
+            self.ui.clearButton.enabled = False
+        else:
+            self.ui.clearButton.enabled = True
+         
 
     def onSelectDirectory(self):
         directory = qt.QFileDialog.getExistingDirectory()
@@ -244,7 +254,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             # load current session Dir
             self.logic.loadScans(directory, sessions, self._parameterNode.currentSessionIndex)
-            print(f'Current session: {self._parameterNode.currentSessionIndex} in {directory}')
+            print(f'Current session: {sessions[self._parameterNode.currentSessionIndex]} in {directory}')
 
             self.loadCurrentSession()
 
@@ -266,6 +276,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             slicer.util.loadVolume(p)
         
         # Reset points and bbox
+        # TODO if already annotated, keep the points and box
         if self._parameterNode.pointsNode:
             self._parameterNode.pointsNode.RemoveAllControlPoints()
         if self._parameterNode.bboxNode:
@@ -303,6 +314,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._parameterNode.bboxNode = None
         
         # Update UI
+        print(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex)
         self.ui.statusLabel.text = "Status: Loading new session..."
         self.ui.statusLabel.styleSheet = "color: blue"
 
@@ -374,7 +386,15 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Button states
         self.ui.generateButton.enabled = count >= 6
+
+        # Check if bboxNode exists
+
         self.ui.saveButton.enabled = self._parameterNode.bboxNode is not None
+
+        # noOfBboxNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')
+        # self.ui.clearButton.enabled = self._parameterNode.HasParameter("bboxNode")
+        # self.ui.saveButton.enabled = self._parameterNode.HasParameter("bboxNode")
+        # noOfSegmentationNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')
 
         # Scan info
         if self._parameterNode.scanDirectory:
@@ -397,6 +417,24 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         except Exception as e:
             self.ui.statusLabel.text = f"Error: {str(e)}"
             self.ui.statusLabel.styleSheet = "color: red"
+
+    def onClearBbox(self):
+        """Clear the existing bounding box"""
+        try:
+            if self._parameterNode.bboxNode == None:
+                self.ui.statusLabel.text = "Status: There is no Bounding box"
+                self.ui.statusLabel.styleSheet = "color: orange"
+                self._parameterNode.bboxNode = None
+                return
+            slicer.mrmlScene.RemoveNode(self._parameterNode.bboxNode)
+            self._parameterNode.bboxNode = None
+            self.updateUI()
+            self.ui.statusLabel.text = "Status: Bounding box removed"
+            self.ui.statusLabel.styleSheet = "color: blue"
+        except Exception as e:
+            self.ui.statusLabel.text = f"Error: {str(e)}"
+            self.ui.statusLabel.styleSheet = "color: red"
+    
     
     def cleanup(self):
         """Cleanup observations"""
@@ -492,6 +530,14 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         """Generate segmentation from markup points"""
         if not pointsNode or pointsNode.GetNumberOfControlPoints() < 6:
             raise ValueError("At least 6 points required")
+
+        if not self._parameterNode.bboxNode:
+        # Create empty segmentation node for bbox
+            self._parameterNode.bboxNode = slicer.mrmlScene.AddNewNodeByClass(
+                "vtkMRMLMarkupsROINode",
+                "BoundingBox"
+        )
+
             
         # Get points array
         points = []
@@ -507,33 +553,50 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         max_coords = np.max(points_array, axis=0)
 
         # Create segmentation node and cube representation
-        bboxNode = slicer.mrmlScene.AddNewNodeByClass('vtkMRMLSegmentationNode', "BoundingBox")
-        bboxNode.CreateDefaultDisplayNodes()
+        bboxNode = self._parameterNode.bboxNode
+        # bboxNode.CreateDefaultDisplayNodes()
         
-        cube = vtk.vtkCubeSource()
-        cube.SetCenter(
+        # cube = vtk.vtkCubeSource()
+        bboxNode.SetXYZ(
             (min_coords[0] + max_coords[0])/2,
             (min_coords[1] + max_coords[1])/2,
             (min_coords[2] + max_coords[2])/2
         )
-        cube.SetXLength(max_coords[0] - min_coords[0])
-        cube.SetYLength(max_coords[1] - min_coords[1])
-        cube.SetZLength(max_coords[2] - min_coords[2])
-        
-        # Convert to closed surface
-        triangleFilter = vtk.vtkTriangleFilter()
-        triangleFilter.SetInputConnection(cube.GetOutputPort())
-        triangleFilter.Update()
-
-        # Add to segmentation
-        segmentation = bboxNode.GetSegmentation()
-        segment = slicer.vtkSegment()
-        segment.SetName("BoundingBox")
-        segment.AddRepresentation(
-            slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName(),
-            triangleFilter.GetOutput()
+        bboxNode.SetRadiusXYZ(
+            (max_coords[0] - min_coords[0])/2,
+            (max_coords[1] - min_coords[1])/2,
+            (max_coords[2] - min_coords[2])/2
         )
-        segmentation.AddSegment(segment)
+
+        # Get or create display node of bbox
+        displayNode = bboxNode.GetDisplayNode()
+        if not displayNode:
+            bboxNode.CreateDefaultDisplayNodes()
+            displayNode = bboxNode.GetDisplayNode()
+
+        # Set display properties
+        displayNode.SetVisibility(True)  # Make sure it's visible
+        displayNode.SetOpacity(1.0)      # Fully opaque
+        displayNode.SetFillVisibility(False)  # Turn off fill
+        displayNode.SetOutlineVisibility(True)  # Turn on outline
+
+        # Customize outline appearance
+        displayNode.SetOutlineOpacity(1.0)    # Fully opaque outline
+        
+        # # Convert to closed surface
+        # triangleFilter = vtk.vtkTriangleFilter()
+        # triangleFilter.SetInputConnection(cube.GetOutputPort())
+        # triangleFilter.Update()
+
+        # # Add to segmentation
+        # segmentation = bboxNode.GetSegmentation()
+        # segment = slicer.vtkSegment()
+        # segment.SetName("BoundingBox")
+        # segment.AddRepresentation(
+        #     slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName(),
+        #     triangleFilter.GetOutput()
+        # )
+        # segmentation.AddSegment(segment)
         
         return bboxNode
 
