@@ -182,6 +182,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.saveButton.clicked.connect(self.onSave)
         self.ui.generateButton.clicked.connect(self.onGenerateBbox)
         self.ui.clearButton.clicked.connect(self.onClearBbox)
+        self.ui.clearPtsButton.clicked.connect(self.onClearPoints)
 
     def initializeParameterNode(self):
         """Ensure parameter node exists and observed."""
@@ -204,9 +205,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self._parameterNode.bboxNode = slicer.mrmlScene.AddNewNodeByClass(
                 "vtkMRMLMarkupsROINode",
                 "BoundingBox"
-        )
-
-        
+        )        
             
     def setParameterNode(self, inputParameterNode: Optional[BbxFromPoints2ParameterNode]) -> None:
         """
@@ -271,6 +270,11 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         for p in segPath:
             self._parameterNode.existingSegNode = slicer.util.loadSegmentation(p)
+        
+        # do not display the segmentation 
+        displayNode = self._parameterNode.existingSegNode.GetDisplayNode()
+        displayNode.SetVisibility(False)
+
 
         for p in imagePath:
             slicer.util.loadVolume(p)
@@ -434,6 +438,23 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         except Exception as e:
             self.ui.statusLabel.text = f"Error: {str(e)}"
             self.ui.statusLabel.styleSheet = "color: red"
+
+    def onClearPoints(self):
+        """Clear the existing selected points"""
+        try:
+            if self._parameterNode.pointsNode == None:
+                self.ui.statusLabel.text = "Status: There is no selected point."
+                self.ui.statusLabel.styleSheet = "color: orange"
+                self._parameterNode.pointsNode = None
+                return
+            slicer.mrmlScene.RemoveNode(self._parameterNode.pointsNode)
+            self._parameterNode.bboxNode = None
+            self.updateUI()
+            self.ui.statusLabel.text = "Status: Selected points are removed"
+            self.ui.statusLabel.styleSheet = "color: blue"
+        except Exception as e:
+            self.ui.statusLabel.text = f"Error: {str(e)}"
+            self.ui.statusLabel.styleSheet = "color: red"
     
     
     def cleanup(self):
@@ -537,7 +558,6 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
                 "vtkMRMLMarkupsROINode",
                 "BoundingBox"
         )
-
             
         # Get points array
         points = []
@@ -582,6 +602,8 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
 
         # Customize outline appearance
         displayNode.SetOutlineOpacity(1.0)    # Fully opaque outline
+        displayNode.SetOutlineOpacity(1.0)
+        displayNode.SetSelectedColor(0,1,0)
         
         # # Convert to closed surface
         # triangleFilter = vtk.vtkTriangleFilter()
