@@ -85,13 +85,6 @@
         </property>
        </widget>
       </item>
-      <item>
-       <widget class="QPushButton" name="clearPtsButton">
-        <property name="text">
-         <string>Clear All Selected Points</string>
-        </property>
-       </widget>
-      </item>
      </layout>
     </widget>
    </item>
@@ -130,6 +123,32 @@
           <string>Excellent</string>
          </property>
         </item>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QTextBrowser" name="textBrowser">
+        <property name="html">
+         <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'.AppleSystemUIFont'; font-size:13pt; font-weight:400; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; font-weight:600; color:#0433ff;&quot;&gt;Excellent&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;: The segmentation is perfectly aligned with the bones and requires no&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;adjustments. For this score, the segmentation volume should overlap with&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;the bones for &lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; text-decoration: underline; color:#000000;&quot;&gt;at least 95%&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;.&lt;/span&gt; &lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600; color:#ff9300;&quot;&gt;Sufficient&lt;/span&gt;: &lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;The segmentation is aligned with the bones, however, could benefit from&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;minor adjustments. For this score, the segmentation volume should&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;overlap with the tumor for &lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; text-decoration: underline; color:#000000;&quot;&gt;at least 75%&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;.&lt;/span&gt; &lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; font-weight:600; color:#aa7942;&quot;&gt;Insufficient&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;: The segmentation misses parts of the bones, or parts are overlapping with&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;other tissue, therefore major adjustments are required. For this score, the&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;segmentation volume should overlap with the bones for &lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; text-decoration: underline; color:#000000;&quot;&gt;at least 50%&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;.&lt;/span&gt; &lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600; color:#ff2600;&quot;&gt;Incorrect&lt;/span&gt;: &lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;the segmentation is not overlapping with the bones, or missing large areas&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;of the bones. For this score, the segmentation volume does not overlap&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;with the bones for &lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; text-decoration: underline; color:#000000;&quot;&gt;&amp;lt;50%&lt;/span&gt;&lt;span style=&quot; font-family:'Helvetica'; color:#000000;&quot;&gt;.&lt;/span&gt; &lt;/p&gt;
+&lt;p style=&quot;-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;br /&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
        </widget>
       </item>
      </layout>
