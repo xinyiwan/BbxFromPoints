@@ -182,7 +182,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.saveButton.clicked.connect(self.onSave)
         self.ui.generateButton.clicked.connect(self.onGenerateBbox)
         self.ui.clearButton.clicked.connect(self.onClearBbox)
-        self.ui.clearPtsButton.clicked.connect(self.onClearPoints)
+        # self.ui.clearPtsButton.clicked.connect(self.onClearPoints)
 
     def initializeParameterNode(self):
         """Ensure parameter node exists and observed."""
@@ -200,12 +200,12 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             )
             self._parameterNode.pointsNode.CreateDefaultDisplayNodes()
         
-        if not self._parameterNode.bboxNode:
-        # Create empty segmentation node for bbox
-            self._parameterNode.bboxNode = slicer.mrmlScene.AddNewNodeByClass(
-                "vtkMRMLMarkupsROINode",
-                "BoundingBox"
-        )        
+        # if not self._parameterNode.bboxNode:
+        # # Create empty segmentation node for bbox
+        #     self._parameterNode.bboxNode = slicer.mrmlScene.AddNewNodeByClass(
+        #         "vtkMRMLMarkupsROINode",
+        #         "BoundingBox"
+        # )        
             
     def setParameterNode(self, inputParameterNode: Optional[BbxFromPoints2ParameterNode]) -> None:
         """
@@ -233,10 +233,10 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.generateButton.toolTip = _("Select at least 6 points for the boundary")
             self.ui.generateButton.enabled = False
         
-        if self._parameterNode.bboxNode and self._parameterNode.bboxNode == None:
-            self.ui.clearButton.enabled = False
-        else:
+        if self._parameterNode.bboxNode and self._parameterNode.bboxNode != None:
             self.ui.clearButton.enabled = True
+        else:
+            self.ui.clearButton.enabled = False
          
 
     def onSelectDirectory(self):
@@ -270,10 +270,9 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         
         for p in segPath:
             self._parameterNode.existingSegNode = slicer.util.loadSegmentation(p)
-        
-        # do not display the segmentation 
-        displayNode = self._parameterNode.existingSegNode.GetDisplayNode()
-        displayNode.SetVisibility(False)
+            # do not display the segmentation 
+            displayNode = self._parameterNode.existingSegNode.GetDisplayNode()
+            displayNode.SetVisibility(False)
 
 
         for p in imagePath:
@@ -296,10 +295,8 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Remove all loaded segmentation nodes
         seg_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
         for seg_node in seg_nodes:
-            # Skip the bounding box node if it exists (we'll handle it separately)
-            if seg_node != self._parameterNode.bboxNode:
-                slicer.mrmlScene.RemoveNode(seg_node)
-        
+            slicer.mrmlScene.RemoveNode(seg_node)
+
         # Clear the existingSegNode reference
         self._parameterNode.existingSegNode = None
         
@@ -349,29 +346,17 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     
     def onSave(self):
+
         if self.validateCurrentState():
-
-            # Create a temporary labelmap volume node
-            labelmap_volume_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
-            
-            # Export the segmentation to labelmap
-            slicer.modules.segmentations.logic().ExportAllSegmentsToLabelmapNode(
-                self._parameterNode.bboxNode,           # Input segmentation node
-                labelmap_volume_node                    # Output labelmap volume
-            )
-
             self.logic.saveResults(
-                labelmap_volume_node,
+                self._parameterNode.bboxNode,
+                self._parameterNode.pointsNode,
                 self._parameterNode.scanDirectory,
                 self._parameterNode.sessionList,
                 self._parameterNode.currentSessionIndex,
-                self.ui.bboxScoreComboBox.currentText,
                 self.ui.segScoreComboBox.currentText
             )
-            slicer.util.infoDisplay("Results saved successfully")
-
-            # Optional: Clean up (remove temporary labelmap)
-            slicer.mrmlScene.RemoveNode(labelmap_volume_node)
+            slicer.util.infoDisplay("Results are saved successfully!")
 
     def validateCurrentState(self):
         valid = True
@@ -390,16 +375,12 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Button states
         self.ui.generateButton.enabled = count >= 6
+        # self.ui.clearPtsButton.enabled = count >= 6
 
         # Check if bboxNode exists
-
-        self.ui.saveButton.enabled = self._parameterNode.bboxNode is not None
-
-        # noOfBboxNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')
-        # self.ui.clearButton.enabled = self._parameterNode.HasParameter("bboxNode")
-        # self.ui.saveButton.enabled = self._parameterNode.HasParameter("bboxNode")
-        # noOfSegmentationNodes = slicer.mrmlScene.GetNumberOfNodesByClass('vtkMRMLSegmentationNode')
-
+        self.ui.saveButton.enabled = self._parameterNode.bboxNode and self._parameterNode.bboxNode is not None
+        self.ui.clearButton.enabled = self._parameterNode.bboxNode and self._parameterNode.bboxNode is not None
+        
         # Scan info
         if self._parameterNode.scanDirectory:
             total = len(self._parameterNode.sessionList)
@@ -447,8 +428,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.statusLabel.styleSheet = "color: orange"
                 self._parameterNode.pointsNode = None
                 return
-            slicer.mrmlScene.RemoveNode(self._parameterNode.pointsNode)
-            self._parameterNode.bboxNode = None
+            self._parameterNode.pointsNode.RemoveAllControlPoints()
             self.updateUI()
             self.ui.statusLabel.text = "Status: Selected points are removed"
             self.ui.statusLabel.styleSheet = "color: blue"
@@ -527,18 +507,194 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
                     if 'seg' in f]
         return imageFile, segFile
     
-    def saveResults(self, bboxNode, directory, sessions, index, bboxScore, segScore):
-        # Save segmentation
-        outputPath = os.path.join(directory, sessions[index], f"seg_bbox.nii.gz")
-        slicer.util.saveNode(bboxNode, outputPath)
-        
-        # Save scores
-        csvPath = outputPath.replace("seg_bbox.nii.gz", "scores.csv")
+    def saveResults(self, bboxNode, pointsNode, directory, sessions, index, segScore):
+        import csv
+        import json
+        import os
         from datetime import datetime
-        timestamp = datetime.now().strftime("%Y-%m-%d")
-        with open(csvPath, 'a') as f:
-            writer = csv.writer(f)
-            writer.writerow([timestamp, bboxScore, segScore])
+
+        ########################################################
+        #    Result1: save the coordiates of points            
+        ########################################################
+
+        # save markup fiducials into the json file
+        outputFilePath = os.path.join(directory, sessions[index], 'status.json')
+        data = {}
+        for fidIndex in range(pointsNode.GetNumberOfControlPoints()):
+            coords=[0,0,0]
+            pointsNode.GetNthControlPointPosition(fidIndex,coords)
+            data[f'pts_{fidIndex}'] = {}
+            data[f'pts_{fidIndex}']['coords'] = coords
+
+        with open(outputFilePath, 'w') as outfile:
+            json.dump(data, outfile)
+
+        print('Selected points are saved!')
+
+        ########################################################
+        #    Result2: Save the boundingbox into segmentation          
+        ########################################################
+
+        # Get bounding box in WORLD (RAS) coordinates first
+        center = [0.0, 0.0, 0.0]
+        bboxNode.GetXYZ(center)
+        radius = [0.0, 0.0, 0.0]
+        bboxNode.GetRadiusXYZ(radius)  # Now passing the output parameter
+        
+        # Calculate all 8 corners of the box in RAS space
+        k = 1
+        ras_corners = []
+        for x in [-1, 1]:
+            for y in [-1, 1]:
+                for z in [-1, 1]:
+                    ras_corners.append([
+                        center[0] + x * radius[0] * k,
+                        center[1] + y * radius[1] * k, 
+                        center[2] + z * radius[2] * k
+                    ])
+        
+        ras_face_centers = []
+        for axis in [0, 1, 2]:
+            for direction in [-1, 1]:
+                point = [center[0], center[1], center[2]]
+                point[axis] += direction * radius[axis]
+                ras_face_centers.append(point)
+
+        
+        def rasToIjk(pointRAS, refvolumeNode):
+            rasToIjkMatrix = vtk.vtkMatrix4x4()
+            refvolumeNode.GetRASToIJKMatrix(rasToIjkMatrix)
+            pointIJK = [0, 0, 0, 1]  # Homogeneous coordinates
+            rasToIjkMatrix.MultiplyPoint(tuple(pointRAS) + (1,), pointIJK)
+            return [int(pointIJK[0]), int(pointIJK[1]), int(pointIJK[2])]
+    
+        def ras_to_lps(ras_coords):
+            lps_coords = ras_coords.copy()
+            lps_coords[0] *= -1  # R -> L
+            lps_coords[1] *= -1  # A -> P
+            return lps_coords
+
+        def lps_to_ras(lps_coords):
+            ras_coords = lps_coords.copy()
+            ras_coords[0] *= -1  # L -> R
+            ras_coords[1] *= -1  # P -> A
+            return ras_coords
+        
+        def saveBboxForImage(ref_volume, volume_name):
+
+            # Get reference volume geometry
+            refImage = ref_volume
+            # print(ref_volume)
+            refDim = refImage.GetImageData().GetDimensions()
+            # print(refDim)
+            refSpacing = np.array(refImage.GetSpacing())  # [sx, sy, sz]
+            # print(refSpacing)
+            refOrigin = np.array(refImage.GetOrigin())    # RAS origin
+            # print(refOrigin)
+
+            # Convert points to IJK space
+            ijk_points = []
+
+            # use the points from bbox (corners)
+            for i in range(len(ras_corners)):
+                ijk_points.append(rasToIjk(ras_corners[i], ref_volume))
+
+            # choose not to use the original points but from bbx
+            # for i in range(pointsNode.GetNumberOfControlPoints()):
+            #     ras_point = [0, 0, 0]
+            #     pointsNode.GetNthControlPointPosition(i, ras_point)
+            #     # Convert RAS → IJK (accounting for spacing and origin)
+            #     ijk_points.append(rasToIjk(ras_point, ref_volume))
+            
+            # Calculate grid-aligned bounds
+            ijk_array = np.array(ijk_points)
+            ijk_min = np.floor(np.min(ijk_array, axis=0)).astype(int)
+            ijk_max = np.ceil(np.max(ijk_array, axis=0)).astype(int)      
+
+            ijk_min = np.clip(ijk_min, 0, np.array(refDim)-1)
+            ijk_max = np.clip(ijk_max, 0, np.array(refDim)-1) 
+
+            print(ijk_min, ijk_max)
+            print(ijk_max - ijk_min)
+
+
+            # Create mask (Z,Y,X order)
+            mask_array = np.zeros((refDim[2], refDim[1], refDim[0]), dtype=np.uint8)
+            mask_array[
+                ijk_min[2]:ijk_max[2]+1,
+                ijk_min[1]:ijk_max[1]+1,
+                ijk_min[0]:ijk_max[0]+1
+            ] = 1
+
+            # Save mask
+            mask_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
+            mask_volume.SetName(f'{volume_name}_v_bbx')
+
+            # Apply reference geometry (spacing + origin + directions)
+            ref_ijk_to_ras = vtk.vtkMatrix4x4()
+            ref_volume.GetIJKToRASMatrix(ref_ijk_to_ras)
+            mask_volume.SetIJKToRASMatrix(ref_ijk_to_ras)  # Do NOT set spacing/origin separately!
+
+            # Update volume from array (now in X,Y,Z order)
+            slicer.util.updateVolumeFromArray(mask_volume, mask_array)
+
+            segmentation_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
+            segmentation_node.SetName("Bbox_IJK")
+            slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(
+                mask_volume, 
+                segmentation_node)
+            
+
+            # Configure display
+            seg_display = segmentation_node.GetDisplayNode()
+            if not seg_display:
+                segmentation_node.CreateDefaultDisplayNodes()
+                seg_display = segmentation_node.GetDisplayNode()
+
+            # Set display properties
+            seg_display.SetVisibility(True)  # Make sure it's visible
+            seg_display.SetOpacity(1.0)      # Fully opaque
+            seg_display.SetAllSegmentsVisibility2DFill(False)  # Turn off fill
+            seg_display.SetOpacity2DOutline(True)
+            seg_display.SetAllSegmentsVisibility2DOutline(True)
+
+            # Customize outline appearance
+            seg_display.SetSelectedColor(1,0,0)
+
+            # Verify alignment
+            slicer.util.setSliceViewerLayers(background=ref_volume, foreground=None, label=segmentation_node)
+
+            output_path = os.path.join(directory, sessions[index], f"{volume_name}_seg_bbox.nii.gz")
+            slicer.util.saveNode(mask_volume, output_path)
+            slicer.mrmlScene.RemoveNode(mask_volume)
+            slicer.mrmlScene.RemoveNode(segmentation_node)
+
+            # TODO if load the saved segmentation ? 
+            self._parameterNode.existingSegNode = slicer.util.loadSegmentation(output_path)
+            # do not display the segmentation 
+            displayNode = self._parameterNode.existingSegNode.GetDisplayNode()
+            displayNode.SetVisibility(True)
+
+        # use every image as reference volume and save bbox accordingly
+        allVolumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
+        for volume_k in allVolumeNodes.keys():
+            v_name = volume_k
+            # if v_name == '901-T1_TSE_TRA':
+            saveBboxForImage(allVolumeNodes[v_name], v_name)
+
+        ########################################################
+        #    Result3: Save score for bone annotations        
+        ########################################################
+
+        # Save scores
+            csvPath = os.path.join(directory, sessions[index], 'scores.csv') 
+            with open(csvPath, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(["Timestamp", "SegScore"])
+                writer.writerow([
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    segScore
+                ])
     
     def linkViewers(self):
         if not self.viewersLinked:
@@ -558,34 +714,35 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
                 "vtkMRMLMarkupsROINode",
                 "BoundingBox"
         )
-            
+
         # Get points array
         points = []
         for i in range(pointsNode.GetNumberOfControlPoints()):
             point = [0.0, 0.0, 0.0]
             pointsNode.GetNthControlPointPosition(i, point)
             points.append(point)
-        
-        # Calculate bounding box dimensions
-        
+
+        # TODO TRY -> ] points into RAS 
+
+        # Calculate bounding box dimensions (RAS)
         points_array = np.array(points)
         min_coords = np.min(points_array, axis=0)
         max_coords = np.max(points_array, axis=0)
 
-        # Create segmentation node and cube representation
         bboxNode = self._parameterNode.bboxNode
-        # bboxNode.CreateDefaultDisplayNodes()
-        
-        # cube = vtk.vtkCubeSource()
         bboxNode.SetXYZ(
             (min_coords[0] + max_coords[0])/2,
             (min_coords[1] + max_coords[1])/2,
             (min_coords[2] + max_coords[2])/2
         )
+
+        # default expansion 
+        k = 1.3
+        # expand radius 5% for every dimention
         bboxNode.SetRadiusXYZ(
-            (max_coords[0] - min_coords[0])/2,
-            (max_coords[1] - min_coords[1])/2,
-            (max_coords[2] - min_coords[2])/2
+            (max_coords[0] - min_coords[0])/2*k,
+            (max_coords[1] - min_coords[1])/2*k,
+            (max_coords[2] - min_coords[2])/2*k
         )
 
         # Get or create display node of bbox
@@ -602,23 +759,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
 
         # Customize outline appearance
         displayNode.SetOutlineOpacity(1.0)    # Fully opaque outline
-        displayNode.SetOutlineOpacity(1.0)
         displayNode.SetSelectedColor(0,1,0)
-        
-        # # Convert to closed surface
-        # triangleFilter = vtk.vtkTriangleFilter()
-        # triangleFilter.SetInputConnection(cube.GetOutputPort())
-        # triangleFilter.Update()
-
-        # # Add to segmentation
-        # segmentation = bboxNode.GetSegmentation()
-        # segment = slicer.vtkSegment()
-        # segment.SetName("BoundingBox")
-        # segment.AddRepresentation(
-        #     slicer.vtkSegmentationConverter.GetSegmentationClosedSurfaceRepresentationName(),
-        #     triangleFilter.GetOutput()
-        # )
-        # segmentation.AddSegment(segment)
         
         return bboxNode
 
