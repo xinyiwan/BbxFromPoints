@@ -379,6 +379,13 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.pointsCountLabel.text = f"Points placed: {count}/6"
         self.ui.pointsCountLabel.styleSheet = "color: green" if count >=6 else "color: red"
 
+        # Subject label
+        if self._parameterNode.scanDirectory:
+            subject = self._parameterNode.scanDirectory.split('/')[-1]
+        else:
+            subject = 'None'
+        self.ui.subjectLabel.text = f"Current subject: {subject}"
+
         # Button states
         self.ui.generateButton.enabled = count >= 6
         # self.ui.clearPtsButton.enabled = count >= 6
