@@ -395,9 +395,10 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.scanLabel.text = "No scans loaded"
         
         # Task status
-        if self.logic.checkTaskStatus(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex):
-            self.ui.statusLabel.text = "This task is completed!"
-            self.ui.statusLabel.styleSheet = "color: green"
+        if self._parameterNode.scanDirectory:
+            if self.logic.checkTaskStatus(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex):
+                self.ui.statusLabel.text = "This task is completed!"
+                self.ui.statusLabel.styleSheet = "color: green"
 
     def onPointsNodeChanged(self, caller, event):
         """Handle points node changes"""
