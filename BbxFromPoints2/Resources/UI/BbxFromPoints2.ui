@@ -91,13 +91,13 @@
    <item>
     <widget class="QGroupBox" name="scoringGroup">
      <property name="title">
-      <string>Scoring</string>
+      <string>Scoring on bones segmentations</string>
      </property>
      <layout class="QFormLayout" name="formLayout">
       <item row="0" column="0">
        <widget class="QLabel" name="segScoreLabel">
         <property name="text">
-         <string>Bone Segmentation Quality:</string>
+         <string>Overall Segmentation Quality:</string>
         </property>
        </widget>
       </item>
