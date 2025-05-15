@@ -285,6 +285,9 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         if self._parameterNode.bboxNode:
             slicer.mrmlScene.RemoveNode(self._parameterNode.bboxNode)
 
+        if self.logic.checkTaskStatus(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex):
+            slicer.util.infoDisplay("This task is already completed!")
+
         # Reset UI elements
         self.ui.statusLabel.text = "Status: Ready"
         self.ui.statusLabel.styleSheet = ""
@@ -357,6 +360,7 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
                 self.ui.segScoreComboBox.currentText
             )
             slicer.util.infoDisplay("Results are saved successfully!")
+            self.updateUI()
 
     def validateCurrentState(self):
         valid = True
@@ -387,7 +391,12 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.ui.scanLabel.text = f"Scan {self._parameterNode.currentSessionIndex+1}/{total}"
         else:
             self.ui.scanLabel.text = "No scans loaded"
-    
+        
+        # Task status
+        if self.logic.checkTaskStatus(self._parameterNode.scanDirectory, self._parameterNode.sessionList, self._parameterNode.currentSessionIndex):
+            self.ui.statusLabel.text = "This task is completed!"
+            self.ui.statusLabel.styleSheet = "color: green"
+
     def onPointsNodeChanged(self, caller, event):
         """Handle points node changes"""
         self.updateUI()
@@ -495,6 +504,23 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         ])
         print(self.imagePaths)
 
+    def checkTaskStatus(self, directory, sessionList, index):
+        import os, json
+        status_file = os.path.join(directory, sessionList[index], 'status.json')
+        # Check if file exists
+        if not os.path.exists(status_file):
+            return False
+
+        try:
+            # Read and parse the JSON file
+            with open(status_file, 'r') as f:
+                status_data = json.load(f)
+            # Check if status is 'completed'
+            return status_data.get('status', '').lower() == 'completed'
+        except (json.JSONDecodeError, IOError) as e:
+            print(f"Error reading status file: {str(e)}")
+            return False
+
     def getScanPaths(self, directory, sessionList, index):
         
         session_dir = directory + '/' + sessionList[index]
@@ -514,25 +540,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         from datetime import datetime
 
         ########################################################
-        #    Result1: save the coordiates of points            
-        ########################################################
-
-        # save markup fiducials into the json file
-        outputFilePath = os.path.join(directory, sessions[index], 'status.json')
-        data = {}
-        for fidIndex in range(pointsNode.GetNumberOfControlPoints()):
-            coords=[0,0,0]
-            pointsNode.GetNthControlPointPosition(fidIndex,coords)
-            data[f'pts_{fidIndex}'] = {}
-            data[f'pts_{fidIndex}']['coords'] = coords
-
-        with open(outputFilePath, 'w') as outfile:
-            json.dump(data, outfile)
-
-        print('Selected points are saved!')
-
-        ########################################################
-        #    Result2: Save the boundingbox into segmentation          
+        #    Result1: Save the boundingbox into segmentation          
         ########################################################
 
         # Get bounding box in WORLD (RAS) coordinates first
@@ -614,10 +622,6 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
             ijk_min = np.clip(ijk_min, 0, np.array(refDim)-1)
             ijk_max = np.clip(ijk_max, 0, np.array(refDim)-1) 
 
-            print(ijk_min, ijk_max)
-            print(ijk_max - ijk_min)
-
-
             # Create mask (Z,Y,X order)
             mask_array = np.zeros((refDim[2], refDim[1], refDim[0]), dtype=np.uint8)
             mask_array[
@@ -628,7 +632,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
 
             # Save mask
             mask_volume = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLabelMapVolumeNode")
-            mask_volume.SetName(f'{volume_name}_v_bbx')
+            mask_volume.SetName(f'{volume_name}_bbx_temp')
 
             # Apply reference geometry (spacing + origin + directions)
             ref_ijk_to_ras = vtk.vtkMatrix4x4()
@@ -637,13 +641,32 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
 
             # Update volume from array (now in X,Y,Z order)
             slicer.util.updateVolumeFromArray(mask_volume, mask_array)
+            
+            # Check if segmentation with same name already exists and remove it
+            shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+            ref_volume_item = shNode.GetItemByDataNode(ref_volume)
 
+            # Get all child items of the reference volume
+            childIds = vtk.vtkIdList()
+            shNode.GetItemChildren(ref_volume_item, childIds)
+
+            # Find and remove existing segmentation with the same name
+            for itemIdIndex in range(childIds.GetNumberOfIds()):
+                shItemId = childIds.GetId(itemIdIndex)
+                dataNode = shNode.GetItemDataNode(shItemId)
+                if dataNode and dataNode.IsA("vtkMRMLSegmentationNode"):
+                    slicer.mrmlScene.RemoveNode(dataNode)
+            
+            # Create new segmentation
             segmentation_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLSegmentationNode")
-            segmentation_node.SetName("Bbox_IJK")
+            segmentation_node.SetName(f"{volume_name}_bbox")
             slicer.modules.segmentations.logic().ImportLabelmapToSegmentationNode(
                 mask_volume, 
                 segmentation_node)
             
+            # Set up hierarchy (put segmentation under reference volume)
+            seg_item = shNode.GetItemByDataNode(segmentation_node)
+            shNode.SetItemParent(seg_item, ref_volume_item)
 
             # Configure display
             seg_display = segmentation_node.GetDisplayNode()
@@ -652,28 +675,39 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
                 seg_display = segmentation_node.GetDisplayNode()
 
             # Set display properties
-            seg_display.SetVisibility(True)  # Make sure it's visible
-            seg_display.SetOpacity(1.0)      # Fully opaque
+            seg_display.SetVisibility(False)  # Make sure it's visible
+            seg_display.SetOpacity(0.5)      # Fully opaque
             seg_display.SetAllSegmentsVisibility2DFill(False)  # Turn off fill
             seg_display.SetOpacity2DOutline(True)
             seg_display.SetAllSegmentsVisibility2DOutline(True)
 
             # Customize outline appearance
             seg_display.SetSelectedColor(1,0,0)
+            seg_display.SetVisibility2D(True)
+            seg_display.SetVisibility3D(False)  # No 3D display
 
-            # Verify alignment
-            slicer.util.setSliceViewerLayers(background=ref_volume, foreground=None, label=segmentation_node)
-
+            # Save and cleanup
             output_path = os.path.join(directory, sessions[index], f"{volume_name}_seg_bbox.nii.gz")
             slicer.util.saveNode(mask_volume, output_path)
             slicer.mrmlScene.RemoveNode(mask_volume)
             slicer.mrmlScene.RemoveNode(segmentation_node)
 
-            # TODO if load the saved segmentation ? 
-            self._parameterNode.existingSegNode = slicer.util.loadSegmentation(output_path)
-            # do not display the segmentation 
-            displayNode = self._parameterNode.existingSegNode.GetDisplayNode()
-            displayNode.SetVisibility(True)
+            # Load the saved segmentation and return it
+            loaded_seg = slicer.util.loadSegmentation(output_path)
+
+            # Set up hierarchy for loaded segmentation
+            loaded_seg_item = shNode.GetItemByDataNode(loaded_seg)
+            shNode.SetItemParent(loaded_seg_item, ref_volume_item)
+
+            # Configure display for loaded segmentation
+            loaded_display = loaded_seg.GetDisplayNode()
+            if not loaded_display:
+                loaded_seg.CreateDefaultDisplayNodes()
+                loaded_display = loaded_seg.GetDisplayNode()
+            
+            loaded_display.SetVisibility(False)  # Keep hidden by default
+            loaded_display.SetOpacity(0.5)
+            loaded_display.SetSelectedColor(1, 0, 0)
 
         # use every image as reference volume and save bbox accordingly
         allVolumeNodes = slicer.util.getNodes('vtkMRMLScalarVolumeNode*')
@@ -683,7 +717,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
             saveBboxForImage(allVolumeNodes[v_name], v_name)
 
         ########################################################
-        #    Result3: Save score for bone annotations        
+        #    Result2: Save score for bone annotations        
         ########################################################
 
         # Save scores
@@ -695,7 +729,25 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     segScore
                 ])
-    
+
+        ########################################################
+        #    Result3: save task status, coordiates of points            
+        ########################################################
+
+        # save markup fiducials into the json file
+        outputFilePath = os.path.join(directory, sessions[index], 'status.json')
+        data = {'status': 'completed'}
+        for fidIndex in range(pointsNode.GetNumberOfControlPoints()):
+            coords=[0,0,0]
+            pointsNode.GetNthControlPointPosition(fidIndex,coords)
+            data[f'pts_{fidIndex}'] = {}
+            data[f'pts_{fidIndex}']['coords'] = coords
+
+        with open(outputFilePath, 'w') as outfile:
+            json.dump(data, outfile)
+
+        print('Selected points and bboxes are saved!')
+
     def linkViewers(self):
         if not self.viewersLinked:
             for view in ["Red", "Green", "Yellow"]:
@@ -737,7 +789,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         )
 
         # default expansion 
-        k = 1.3
+        k = 1.1
         # expand radius 5% for every dimention
         bboxNode.SetRadiusXYZ(
             (max_coords[0] - min_coords[0])/2*k,
