@@ -278,7 +278,10 @@ class BbxFromPoints2Widget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
 
         for p in imagePath:
-            slicer.util.loadVolume(p)
+            if 'Localizer' in p or 'DYN' in p:
+                continue
+            else:
+                slicer.util.loadVolume(p)
         
         # Reset points and bbox
         # TODO if already annotated, keep the points and box
