@@ -606,26 +606,26 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
             ijk_points = []
 
             # use the points from bbox (corners)
-            # for i in range(len(ras_corners)):
-            #     ijk_points.append(rasToIjk(ras_corners[i], ref_volume))
+            for i in range(len(ras_corners)):
+                ijk_points.append(rasToIjk(ras_corners[i], ref_volume))
 
-            # choose not to use the original points but from bbx
-            for i in range(pointsNode.GetNumberOfControlPoints()):
-                ras_point = [0, 0, 0]
-                pointsNode.GetNthControlPointPosition(i, ras_point)
-                # Convert RAS → IJK (accounting for spacing and origin)
-                ijk_points.append(rasToIjk(ras_point, ref_volume))
+            # # choose not to use the original points but from bbx
+            # for i in range(pointsNode.GetNumberOfControlPoints()):
+            #     ras_point = [0, 0, 0]
+            #     pointsNode.GetNthControlPointPosition(i, ras_point)
+            #     # Convert RAS → IJK (accounting for spacing and origin)
+            #     ijk_points.append(rasToIjk(ras_point, ref_volume))
             
             # Calculate grid-aligned bounds
             ijk_array = np.array(ijk_points)
-            # ijk_min = np.floor(np.min(ijk_array, axis=0)).astype(int)
-            # ijk_max = np.ceil(np.max(ijk_array, axis=0)).astype(int)      
+            ijk_min = np.floor(np.min(ijk_array, axis=0)).astype(int)
+            ijk_max = np.ceil(np.max(ijk_array, axis=0)).astype(int)      
 
-            ijk_min = np.min(ijk_array, axis=0).astype(int)
-            ijk_max = np.max(ijk_array, axis=0).astype(int) 
+            # ijk_min = np.min(ijk_array, axis=0).astype(int)
+            # ijk_max = np.max(ijk_array, axis=0).astype(int) 
 
-            # ijk_min = np.clip(ijk_min, 0, np.array(refDim)-1)
-            # ijk_max = np.clip(ijk_max, 0, np.array(refDim)-1) 
+            ijk_min = np.clip(ijk_min, 0, np.array(refDim)-1)
+            ijk_max = np.clip(ijk_max, 0, np.array(refDim)-1) 
 
             # Create mask (Z,Y,X order)
             mask_array = np.zeros((refDim[2], refDim[1], refDim[0]), dtype=np.uint8)
@@ -794,7 +794,7 @@ class BbxFromPoints2Logic(ScriptedLoadableModuleLogic):
         )
 
         # default expansion 
-        k = 1
+        k = 1.1
         # expand radius 5% for every dimention
         bboxNode.SetRadiusXYZ(
             (max_coords[0] - min_coords[0])/2*k,
